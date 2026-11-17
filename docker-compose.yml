@@ -1,0 +1,14 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: corebank-mysql
+    environment:
+      MYSQL_DATABASE: corebank
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+    ports:
+      - "3306:3306"
+    volumes:
+      - corebank-mysql-data:/var/lib/mysql
+
+volumes:
+  corebank-mysql-data:
