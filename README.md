@@ -1,32 +1,34 @@
 # Core Bancário — CoreBank API
 
-API REST de operações bancárias desenvolvida com Java 21 e Spring Boot. Permite cadastrar clientes, autenticar por JWT, consultar conta e saldo, realizar depósitos, saques e transferências e consultar o extrato paginado.
+API REST de operações bancárias desenvolvida com Java 21 e Spring Boot. O projeto permite cadastrar clientes, autenticar por JWT, consultar conta e saldo, realizar depósitos, saques e transferências, além de consultar o extrato paginado.
 
-## Funcionalidades
+## Principais funcionalidades
 
 - Cadastro de cliente com validação de CPF, e-mail e senha.
 - Criação automática de conta corrente na agência `0001`.
 - Login com CPF e senha e geração de token JWT.
-- Autenticação stateless com `Authorization: Bearer <token>`.
+- Autenticação stateless por `Authorization: Bearer <token>`.
 - Consulta da conta e do saldo do usuário autenticado.
 - Depósito, saque e transferência entre contas.
 - Extrato paginado com registros de entrada e saída.
-- Validação de payload e respostas RFC 7807 (`ProblemDetail`).
-- Controle otimista de concorrência com `@Version`.
+- Validações de payload e respostas padronizadas com RFC 7807 (`ProblemDetail`).
+- Controle otimista de concorrência nas contas (`@Version`).
 - Dados iniciais de demonstração no profile `dev`.
-- Documentação interativa Swagger/OpenAPI.
+- Documentação interativa com Swagger/OpenAPI.
 
 ## Tecnologias
 
 - Java 21
 - Spring Boot 4.1.2
-- Spring Web MVC e Spring Data JPA
+- Spring Web MVC
+- Spring Data JPA / Hibernate
 - Spring Security
 - JWT via `java-jwt` 4.5.0
 - Bean Validation / Hibernate Validator
-- MySQL 8 e H2 para testes
+- MySQL 8 / H2 para testes
 - Springdoc OpenAPI 3.2.0
-- Lombok e Maven
+- Lombok
+- Maven
 - Docker Compose
 
 ## Arquitetura
@@ -47,65 +49,76 @@ src/main/java/corebancario
 
 ### Customer
 
+Representa o cliente e implementa `UserDetails` do Spring Security.
+
 - `id`: UUID
 - `nome`: até 150 caracteres
 - `cpf`: 11 dígitos, único
 - `email`: único
 - `senha`: armazenada com BCrypt
-- Implementa `UserDetails` do Spring Security
+- `contas`: contas associadas
 
 ### Account
 
+Representa uma conta bancária.
+
 - `id`: UUID
 - `agencia`: padrão `0001`
-- `numero`: único, formato `000000-0`
+- `numero`: único, formato gerado `000000-0`
 - `tipo`: `CORRENTE`
 - `saldo`: `BigDecimal`, precisão 19 e escala 2
 - `ativa`: indica se pode receber transferências
-- `version`: locking otimista
+- `version`: usada para locking otimista
 
 ### Transaction
+
+Registra depósitos, saques e transferências.
 
 - `id`: UUID
 - `tipo`: `DEPOSITO`, `SAQUE` ou `TRANSFERENCIA`
 - `valor`: `BigDecimal`, precisão 19 e escala 2
-- `contaOrigem`: saques e transferências
-- `contaDestino`: depósitos e transferências
+- `contaOrigem`: preenchida em saques e transferências
+- `contaDestino`: preenchida em depósitos e transferências
 - `dataHora`: gerada automaticamente
 
 ## Requisitos
 
 - JDK 21
-- Maven ou os wrappers `mvnw` / `mvnw.cmd`
-- Docker e Docker Compose, opcional
-- MySQL 8, caso não utilize Docker
+- Maven (ou `./mvnw` / `mvnw.cmd`)
+- Docker e Docker Compose, opcional para subir o MySQL
+- MySQL 8, caso não use Docker
 
-## Executando
+## Executando o projeto
 
-### 1. Subir o MySQL
+### 1. Configurar o MySQL com Docker
 
-```powershell
+Na raiz do projeto:
+
+```bash
 docker compose up -d
 ```
 
-O Compose cria o banco `corebank`, usuário `root` e senha padrão `root`, na porta `3306`. Para alterar a senha:
+O Compose cria o banco `corebank` com usuário `root` e senha padrão `root`, expondo a porta `3306`. A senha pode ser alterada por variável:
 
-```powershell
-$env:DB_PASSWORD="sua_senha"
-docker compose up -d
+```bash
+DB_PASSWORD=sua_senha docker compose up -d
 ```
 
-### 2. Configurar variáveis
+> O Spring, por padrão, usa o banco `corebancario`, não `corebank`. Ajuste `spring.datasource.url` ou execute o MySQL com a variável correspondente.
+
+### 2. Configurar a aplicação
+
+A configuração principal está em `src/main/resources/application.properties`. Variáveis suportadas:
 
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `DB_USERNAME` | `root` | Usuário do MySQL |
 | `DB_PASSWORD` | nenhuma no perfil principal | Senha do MySQL |
-| `JWT_SECRET` | chave local de desenvolvimento | Chave HMAC dos tokens |
-| `JWT_EXPIRATION_HOURS` | `2` | Validade do JWT |
-| `PORT` | `8082` | Porta HTTP |
+| `JWT_SECRET` | chave local de desenvolvimento | Chave HMAC usada para assinar os tokens |
+| `JWT_EXPIRATION_HOURS` | `2` | Validade do JWT em horas |
+| `PORT` | `8082` | Porta HTTP da API |
 
-Exemplo no Windows:
+Exemplo no PowerShell:
 
 ```powershell
 $env:DB_PASSWORD="root"
@@ -113,7 +126,7 @@ $env:JWT_SECRET="uma-chave-longa-e-segura"
 .\mvnw.cmd spring-boot:run
 ```
 
-Exemplo no Linux/macOS:
+No Linux/macOS:
 
 ```bash
 export DB_PASSWORD=root
@@ -121,22 +134,34 @@ export JWT_SECRET="uma-chave-longa-e-segura"
 ./mvnw spring-boot:run
 ```
 
-A API ficará disponível em `http://localhost:8082`.
+### 3. Executar em modo de desenvolvimento
 
-### 3. Executar com dados de demonstração
+O profile `dev` ativa o `DatabaseSeeder` e cria 20 clientes de demonstração.
 
 ```powershell
 $env:SPRING_PROFILES_ACTIVE="dev"
 .\mvnw.cmd spring-boot:run
 ```
 
-O seeder cria 20 clientes somente se o banco estiver vazio. A senha é `123456`; o primeiro CPF é gerado como `00000000001`. Os dados de acesso são exibidos no log de inicialização.
+A API inicia em `http://localhost:8082`.
+
+## Usuário de demonstração
+
+Quando o profile `dev` é ativado em um banco vazio:
+
+- Senha de todos os clientes: `123456`
+- Primeiro CPF: gerado como `00000000001`
+- Conta destino: exibida no log de inicialização
+
+Os 20 clientes recebem saldos iniciais diferentes e são criadas cinco transferências fictícias. O seeder não executa quando já existe pelo menos um cliente.
 
 ## Endpoints
 
 Base URL: `http://localhost:8082`
 
-### Registrar cliente
+### Autenticação
+
+#### Registrar cliente
 
 ```http
 POST /api/auth/register
@@ -152,9 +177,13 @@ Content-Type: application/json
 }
 ```
 
-Respostas: `201 Created`, `400 Bad Request` ou `422 Unprocessable Entity`.
+Respostas:
 
-### Login
+- `201 Created`: cliente e conta criados.
+- `400 Bad Request`: nome, CPF, e-mail ou senha inválidos.
+- `422 Unprocessable Entity`: CPF ou e-mail já cadastrado.
+
+#### Login
 
 ```http
 POST /api/auth/login
@@ -168,7 +197,7 @@ Content-Type: application/json
 }
 ```
 
-Resposta:
+Resposta `200 OK`:
 
 ```json
 {
@@ -178,20 +207,31 @@ Resposta:
 }
 ```
 
-### Consultar conta
+Um CPF enviado com pontuação é normalizado para somente dígitos.
+
+### Conta
+
+#### Consultar minha conta
 
 ```http
 GET /api/accounts/me
 Authorization: Bearer <token>
 ```
 
-Retorna dados da conta e saldo do usuário autenticado.
+Retorna `id`, agência, número da conta, tipo, saldo e nome do titular.
 
-### Depósito
+### Transações
+
+Envie o token em todas as rotas abaixo:
+
+```http
+Authorization: Bearer <token>
+```
+
+#### Depósito
 
 ```http
 POST /api/transactions/deposit
-Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
@@ -201,11 +241,10 @@ Content-Type: application/json
 }
 ```
 
-### Saque
+#### Saque
 
 ```http
 POST /api/transactions/withdraw
-Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
@@ -215,13 +254,12 @@ Content-Type: application/json
 }
 ```
 
-Exige saldo suficiente.
+O saque exige saldo suficiente.
 
-### Transferência
+#### Transferência
 
 ```http
 POST /api/transactions/transfer
-Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
@@ -234,45 +272,66 @@ Content-Type: application/json
 
 Regras:
 
-- Valor maior que zero.
-- Conta destino existente e ativa.
+- Valor deve ser maior que zero.
+- Conta de destino deve existir e estar ativa.
 - Não é permitido transferir para a própria conta.
 - Saldo da origem deve ser suficiente.
-- Origem e destino são atualizados na mesma transação.
+- Origem e destino têm os saldos atualizados na mesma transação.
 
-### Extrato
+#### Extrato
 
 ```http
 GET /api/transactions/statement?page=0&size=10&sort=dataHora,desc
 Authorization: Bearer <token>
 ```
 
-- `page`: página iniciando em `0`.
-- `size`: itens por página; padrão `10`.
+Parâmetros Spring Data:
+
+- `page`: número da página, iniciando em `0`.
+- `size`: quantidade por página; padrão `10`.
 - `sort`: campo e direção, por exemplo `dataHora,desc`.
 
-## Swagger/OpenAPI
+O extrato inclui transações em que a conta autenticada aparece como origem ou destino.
+
+### Exemplo de transação
+
+```json
+{
+  "id": "b31f4d9e-0a4b-4bb8-9e4d-2ab8fa7a8fd3",
+  "tipo": "TRANSFERENCIA",
+  "valor": 50.00,
+  "contaOrigem": "123456-7",
+  "contaDestino": "765432-1",
+  "dataHora": "2026-11-19T09:33:50"
+}
+```
+
+Os tipos possíveis são `DEPOSITO`, `SAQUE` e `TRANSFERENCIA`.
+
+## Swagger / OpenAPI
+
+Com a aplicação iniciada:
 
 - Swagger UI: `http://localhost:8082/swagger-ui.html`
 - Documentação JSON: `http://localhost:8082/v3/api-docs`
 
-Use **Authorize** e informe apenas o JWT. O esquema Swagger já adiciona `Bearer`.
+No Swagger, use **Authorize** e informe apenas o JWT, sem prefixar novamente com `Bearer`, pois o esquema OpenAPI já utiliza HTTP Bearer.
 
 ## Segurança
 
 - Senhas armazenadas com BCrypt.
-- API stateless com JWT.
-- CPF é o subject do token e o identificador do usuário autenticado.
-- Login e registro são públicos.
-- Swagger é público.
-- Demais endpoints exigem autenticação.
-- CSRF desabilitado por se tratar de API REST stateless.
-- JWT assinado com HMAC256 e issuer `corebank-api`.
-- Use um `JWT_SECRET` forte fora do ambiente local.
+- Autenticação baseada em token JWT sem estado de sessão.
+- CPF é usado como `subject` do token e como identificador do usuário autenticado.
+- `POST /api/auth/login` e `POST /api/auth/register` são públicos.
+- Swagger também é público.
+- Todas as demais rotas exigem autenticação.
+- CSRF desabilitado por se tratar de uma API stateless.
+- JWT assinado com HMAC256 e emitido pelo issuer `corebank-api`.
+- Recomenda-se definir um `JWT_SECRET` forte em ambientes externos.
 
-## Erros
+## Erros e validação
 
-As exceções são tratadas globalmente com `application/problem+json`.
+As exceções são tratadas globalmente e retornam `application/problem+json`.
 
 | Situação | HTTP |
 |---|---:|
@@ -293,16 +352,17 @@ Exemplo:
 }
 ```
 
+Erros de validação incluem um campo `erros` com o nome de cada campo e sua mensagem.
+
 ## Testes
 
-O perfil de teste utiliza H2 em memória:
+Os testes têm suporte a perfil H2 em `src/test/resources/application-test.properties`:
 
-```properties
-spring.datasource.url=jdbc:h2:mem:corebanktest
-spring.jpa.hibernate.ddl-auto=create-drop
-```
+- banco em memória `corebanktest`
+- H2
+- DDL `create-drop`
 
-Executar:
+Executar todos os testes:
 
 ```powershell
 .\mvnw.cmd test
@@ -314,19 +374,42 @@ Gerar o JAR:
 .\mvnw.cmd clean package
 ```
 
-> Atualmente, as classes de teste em `corebancario.service` e `corebancario.controller` estão vazias. O projeto já possui as dependências necessárias para ampliá-las.
+O artefato será criado em `target/core-bancario-0.0.1-SNAPSHOT.jar`.
+
+> Atualmente, as classes de teste em `corebancario.service` e `corebancario.controller` estão vazias. A estrutura para JUnit/Spring Test já está configurada no projeto e pode ser expandida.
 
 ## Banco de dados
 
-Perfil principal configurado para MySQL:
+A aplicação está configurada para MySQL em `application.properties` e usa `spring.jpa.hibernate.ddl-auto=update`. SQL das operações pode ser exibido porque `spring.jpa.show-sql=true` está habilitado no perfil principal.
+
+Configuração padrão:
 
 ```properties
 spring.datasource.url=jdbc:mysql://localhost:3306/corebancario
 spring.datasource.username=root
-spring.jpa.hibernate.ddl-auto=update
 ```
 
-Atenção: o `docker-compose.yml` cria o banco `corebank`, enquanto `application.properties` aponta para `corebancario`. Ajuste uma das configurações antes de iniciar.
+Para H2 em testes:
+
+```properties
+spring.datasource.url=jdbc:h2:mem:corebanktest
+spring.jpa.hibernate.ddl-auto=create-drop
+```
+
+## Estrutura resumida dos diretórios
+
+```text
+core-bancario/
+├── docker-compose.yml
+├── mvnw
+├── mvnw.cmd
+├── pom.xml
+├── src/
+│   ├── main/java/corebancario/
+│   ├── main/resources/
+│   └── test/java/corebancario/
+└── target/
+```
 
 ## Licença
 

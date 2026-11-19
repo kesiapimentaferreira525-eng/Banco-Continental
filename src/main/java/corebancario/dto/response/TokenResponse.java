@@ -1,4 +1,7 @@
 package corebancario.dto.response;
 
-public record TokenResponse(String accessToken, String tokenType) {
-}
+public record TokenResponse(
+        String token,
+        String tipo,
+        Long expiraEmSegundos
+) {}

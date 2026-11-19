@@ -1,6 +1,15 @@
 package corebancario.dto.response;
 
-import java.math.BigDecimal;
+import corebancario.model.enums.AccountType;
 
-public record AccountResponse(Long id, String accountNumber, BigDecimal balance) {
-}
+import java.math.BigDecimal;
+import java.util.UUID;
+
+public record AccountResponse(
+        UUID id,
+        String agencia,
+        String numero,
+        AccountType tipo,
+        BigDecimal saldo,
+        String titularNome
+) {}
